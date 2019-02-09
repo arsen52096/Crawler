@@ -10,7 +10,7 @@ import os
 
 
 
-def date_run(url):
+def date_run(url: str) -> list:
     """
     
     take url, 
@@ -22,34 +22,33 @@ def date_run(url):
     first day of lenta is 31.08.1999
 
     """
-    date_first_day_lenta = datetime.date(1999,8,31)
+
+    date_first_day_lenta = datetime.date(2019,2,5)
     date_today = datetime.date.today()
     delta = date_today - date_first_day_lenta
     
     date_list = [
         date_first_day_lenta + datetime.timedelta(
         days = x
-    ) for x in range(0, int(str(delta)[0:4]))
+    ) for x in range(0, int(str(delta)[0:2]))
     ]
 
-    date = [
+    formating_date_list = [
         datetime.datetime.strptime(
-            str(date_list[x]), '%Y-%m-%d'
+            str(date), '%Y-%m-%d'
         ).strftime('%Y/%m/%d/') 
-        for x in range(len(date_list))
+        for date in date_list
     ]
     
-    url_and_date = [url+date[x] for x in range(len(date))]
-    
-    return url_and_date
+    return [url + date for date in formating_date_list]
 
 
-def get_html(date_run_url):
+def get_html(date_run_url: list) -> list:
     """take url with date 
 
     and return all links of lenta.ru """
 
-    links = []
+    links = set()
     for date_url in range(len(date_run_url)):
         page = requests.get(date_run_url[date_url])
         soup = BeautifulSoup(page.content, 'html.parser')
@@ -60,20 +59,18 @@ def get_html(date_run_url):
             for link in soup.find(attrs={
                 'class':"page-archive"
                 }).findAll('a', attrs={'href': re.compile("news/1999")}):
-                links.append('https://lenta.ru'+link.get('href'))
+                links.add('https://lenta.ru'+link.get('href'))
         elif year>=2000:
             for link in soup.find(attrs={
                 'class':"page-archive"
                 }).findAll('a', attrs={'href': re.compile("news/20")}):
-                links.append('https://lenta.ru'+link.get('href'))
-    
-    links = list(set(links))
-    
+                links.add('https://lenta.ru'+link.get('href'))
+        
     return links
 
 
 
-def article_text(url2, genres):
+def article_text(urls: list, genres):
 
     """
     take all links of lenta.ru, 
@@ -88,9 +85,9 @@ def article_text(url2, genres):
     article_title_list = []
     body_list = []
     
-    for item in range(len(url2)):
+    for url in urls:
         
-        page = requests.get(url2[item])
+        page = requests.get(url)
         soup = BeautifulSoup(page.content, 'html.parser')
          
         date = soup.find(attrs={'itemprop' : 'datePublished'}).text[1:]
@@ -104,7 +101,7 @@ def article_text(url2, genres):
         
         
         article_text = soup.find(attrs={'itemprop' : 'articleBody'}).find_all('p')
-        article_text = [p_section.text.strip() for p_section in article_text if p_section.contents[0].name==None]
+        article_text = [p_section.text.strip() for p_section in article_text] #if p_section.contents[0].name==None]
         body = ' '.join(article_text)
         body_list.append(body)
         
@@ -126,14 +123,25 @@ if __name__ == '__main__':
         'Культура', 'Спорт', 'Интернет и СМИ', 'Ценности', 'Путешествия', 'Из жизни', 'Дом']
 
 
-    general_dataframe = pd.DataFrame(
-        article_text(
-            get_html(
-                date_run(url)
-                ), genres
-            )
-    )[['Date', 'genre', 'title', 'article_test']]
+    url_date = date_run(url)
+    html = get_html(url_date)
+    article_text = article_text(html, genres)
+    general_dataframe = pd.DataFrame(article_text)[['Date', 'genre', 'title', 'article_test']]
 
     writer = pd.ExcelWriter('lenta.xlsx')
     general_dataframe.to_excel(writer)
+    writer.save()
+
+
+
+
+    # general_dataframe = pd.DataFrame(
+    #     article_text(
+    #         get_html(
+    #             date_run(url)
+    #             ), genres
+    #         )
+    # )[['Date', 'genre', 'title', 'article_test']]
+
+    
 
